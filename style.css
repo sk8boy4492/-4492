@@ -425,23 +425,19 @@ main {
   margin-bottom: 8px;
 }
 
-.player-row-head select {
-  font-size: 16px;
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--page-plane);
-  color: var(--text-primary);
-  min-height: 44px;
-}
-
 .result-player-name {
   flex: 1;
   font-weight: 600;
 }
 
-.pr-rank {
-  flex: 1;
+.rank-badge {
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--brand);
+  background: var(--page-plane);
+  border-radius: 999px;
+  padding: 6px 12px;
 }
 
 .readonly-count {

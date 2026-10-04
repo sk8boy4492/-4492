@@ -382,6 +382,7 @@ const App = {
           <div id="kyoku-add-form"></div>
 
           <h3>3. 最終結果</h3>
+          <p class="hint">最終持ち点を入力してください。着順は持ち点から自動的に計算されます。</p>
           <p class="hint" id="kyoku-total-hint"></p>
           <div id="result-rows"></div>
           <div class="calc-preview" id="calc-preview"></div>
@@ -594,7 +595,7 @@ const App = {
       document.getElementById("kyoku-total-hint").textContent = `総局数: ${kyokuLog.length}局(自動計算)`;
 
       if (participants.length < n) {
-        rowsEl.innerHTML = '<p class="hint">参加プレイヤーをすべて選択すると、着順・最終持ち点を入力できます。</p>';
+        rowsEl.innerHTML = '<p class="hint">参加プレイヤーをすべて選択すると、最終持ち点を入力できます(着順は自動計算されます)。</p>';
         updatePreview();
         return;
       }
@@ -606,13 +607,9 @@ const App = {
           return `
             <div class="player-row" data-player-id="${p.id}">
               <div class="player-row-head">
+                ${this.avatarHtml(p.id)}
                 <span class="result-player-name">${esc(p.name)}</span>
-                <select class="pr-rank" required>
-                  <option value="">着順</option>
-                  ${Array.from({ length: n }, (_, k) => k + 1)
-                    .map((r) => `<option value="${r}" ${ex.rank === r ? "selected" : ""}>${r}着</option>`)
-                    .join("")}
-                </select>
+                <span class="rank-badge" data-player-id="${p.id}">-着</span>
               </div>
               <div class="player-row-body">
                 <label class="field small"><span>最終持ち点</span><input type="number" class="pr-score" step="100" value="${ex.finalScore ?? ""}" required /></label>
@@ -631,14 +628,24 @@ const App = {
       const mode = modeSelect.value;
       const n = Calc.playerCountForMode(mode);
       const rows = Array.from(document.querySelectorAll("#result-rows .player-row"));
-      const data = rows.map((row) => ({
+      const allFilled = rows.length === n && rows.every((row) => row.querySelector(".pr-score").value !== "");
+      const scoreEntries = rows.map((row) => ({
         playerId: row.dataset.playerId,
-        rank: Number(row.querySelector(".pr-rank").value) || 0,
         finalScore: Number(row.querySelector(".pr-score").value) || 0,
+      }));
+      const ranks = allFilled ? Calc.ranksFromScores(scoreEntries) : {};
+      rows.forEach((row) => {
+        const badge = row.querySelector(".rank-badge");
+        if (badge) badge.textContent = ranks[row.dataset.playerId] ? `${ranks[row.dataset.playerId]}着` : "-着";
+      });
+      const data = scoreEntries.map((e) => ({
+        playerId: e.playerId,
+        rank: ranks[e.playerId] || 0,
+        finalScore: e.finalScore,
       }));
 
       const preview = document.getElementById("calc-preview");
-      const complete = data.length === n && data.every((d) => d.playerId && d.rank);
+      const complete = allFilled;
       if (complete) {
         preview.innerHTML =
           "<h3>収支pt(自動計算)</h3>" +
@@ -657,10 +664,6 @@ const App = {
       const participantIds = currentParticipants().map((p) => p.id);
       if (new Set(participantIds).size !== participantIds.length && participantIds.length > 1) {
         msgs.push("同じプレイヤーが複数選択されています。");
-      }
-      const ranks = data.map((d) => d.rank).filter(Boolean);
-      if (new Set(ranks).size !== ranks.length && ranks.length > 1) {
-        msgs.push("着順が重複しています。");
       }
       const sum = data.reduce((s, d) => s + d.finalScore, 0);
       const expected = this.rules[mode].start * n;
@@ -725,13 +728,21 @@ const App = {
       return;
     }
 
+    if (rows.some((row) => row.querySelector(".pr-score").value === "")) {
+      this.toast("すべてのプレイヤーの最終持ち点を入力してください");
+      return;
+    }
+
     const counts = Calc.countsFromKyokuLog(kyokuLog, participantIds);
     const prevPlayers = editing ? editing.players : [];
 
-    const players = rows.map((row) => {
-      const playerId = row.dataset.playerId;
-      const rank = Number(row.querySelector(".pr-rank").value);
-      const finalScore = Number(row.querySelector(".pr-score").value);
+    const scoreEntries = rows.map((row) => ({
+      playerId: row.dataset.playerId,
+      finalScore: Number(row.querySelector(".pr-score").value),
+    }));
+    const ranks = Calc.ranksFromScores(scoreEntries);
+
+    const players = scoreEntries.map(({ playerId, finalScore }) => {
       let agariCount = counts[playerId] ? counts[playerId].agari : 0;
       let houjuuCount = counts[playerId] ? counts[playerId].houjuu : 0;
       if (!kyokuLog.length) {
@@ -742,23 +753,14 @@ const App = {
           houjuuCount = Number(prev.houjuuCount || 0);
         }
       }
-      return { playerId, rank, finalScore, agariCount, houjuuCount };
+      return { playerId, rank: ranks[playerId], finalScore, agariCount, houjuuCount };
     });
-
-    if (players.some((p) => !p.playerId || !p.rank)) {
-      this.toast("すべてのプレイヤーと着順を入力してください");
-      return;
-    }
 
     const totalKyoku = kyokuLog.length || (editing ? Number(editing.totalKyoku || 0) : 0);
 
     const game = { id: editing ? editing.id : genId(), date, place, mode, totalKyoku, players, kyokuLog };
     const check = Calc.validateGame(game, this.rules);
 
-    if (check.rankError) {
-      this.toast("着順が正しくありません(重複・抜けがあります)");
-      return;
-    }
     if (check.sumError) {
       const proceed = confirm(
         `持ち点の合計が${check.expected.toLocaleString()}点になっていません(現在: ${check.sum.toLocaleString()}点)。このまま保存しますか?`

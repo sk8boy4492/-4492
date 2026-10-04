@@ -14,6 +14,18 @@ const Calc = {
     return mode === "sanma" ? 3 : 4;
   },
 
+  // 最終持ち点から着順を自動で決める。持ち点が同じ場合は、入力された順番が早い方を上位とする。
+  // entries: [{ playerId, finalScore }, ...]  戻り値: { playerId: rank, ... }
+  ranksFromScores(entries) {
+    const indexed = entries.map((e, i) => Object.assign({}, e, { _i: i }));
+    indexed.sort((a, b) => b.finalScore - a.finalScore || a._i - b._i);
+    const ranks = {};
+    indexed.forEach((e, idx) => {
+      ranks[e.playerId] = idx + 1;
+    });
+    return ranks;
+  },
+
   // 半荘データの入力チェック。着順の重複・範囲外、持ち点合計のズレを検出する。
   validateGame(game, rules) {
     const n = Calc.playerCountForMode(game.mode);
