@@ -140,14 +140,17 @@ const Calc = {
   // あくまで大まかな目安として扱う(4人麻雀と3人麻雀では和了りやすさが大きく異なるため分けている)。
   STYLE_BASELINE: {
     yonma: { agari: 0.2, houjuu: 0.13 },
-    sanma: { agari: 0.28, houjuu: 0.17 },
+    sanma: { agari: 0.28, houjuu: 0.15 },
   },
   STYLE_DELTA: 0.025, // この幅(2.5pt)を超えて平均的な目安から離れていたら「高い/低い」と判定する
   STYLE_MIN_GAMES: 5,
+  // 三麻では「和了率 − 放銃率」が20pt以上あると優秀とされる、という目安を踏まえた基準。
+  SANMA_SKILLED_DIFF: 0.2,
 
   // 和了率・放銃率から大まかなプレイスタイルを診断する。
   playStyle(stats, mode) {
-    const base = this.STYLE_BASELINE[mode === "sanma" ? "sanma" : "yonma"];
+    const isSanma = mode === "sanma";
+    const base = this.STYLE_BASELINE[isSanma ? "sanma" : "yonma"];
     if (!stats.gamesCount || stats.gamesCount < this.STYLE_MIN_GAMES || stats.agariRate == null || stats.houjuuRate == null) {
       return {
         key: "unknown",
@@ -160,8 +163,10 @@ const Calc = {
     const agariLow = stats.agariRate <= base.agari - d;
     const houjuuHigh = stats.houjuuRate >= base.houjuu + d;
     const houjuuLow = stats.houjuuRate <= base.houjuu - d;
+    // 三麻は「和了率 − 放銃率が20pt以上」でも巧者型とみなす(個別の高低判定に届かなくても該当しうる)
+    const skilledByDiff = isSanma && stats.agariRate - stats.houjuuRate >= this.SANMA_SKILLED_DIFF;
 
-    if (agariHigh && houjuuLow) {
+    if ((agariHigh && houjuuLow) || skilledByDiff) {
       return { key: "skilled", label: "巧者型", desc: "和了も多く放銃も少ない、理想的な打ち筋です。" };
     }
     if (agariHigh && houjuuHigh) {
