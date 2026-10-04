@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>麻雀戦績管理</title>
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <meta name="theme-color" content="#1b5e3a" />
+
+  <!-- iPhoneのホーム画面に追加したときの設定 -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="麻雀戦績" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <link rel="icon" href="./icons/icon-192.png" />
+
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <img src="./icons/icon-192.png" alt="" />
+    <h1>麻雀戦績管理</h1>
+  </header>
+
+  <main>
+    <section id="screen-input" class="screen"></section>
+    <section id="screen-history" class="screen" hidden></section>
+    <section id="screen-stats" class="screen" hidden></section>
+    <section id="screen-settings" class="screen" hidden></section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button type="button" class="nav-btn active" data-tab="input">
+      <span class="nav-icon">✏️</span><span>入力</span>
+    </button>
+    <button type="button" class="nav-btn" data-tab="history">
+      <span class="nav-icon">📜</span><span>履歴</span>
+    </button>
+    <button type="button" class="nav-btn" data-tab="stats">
+      <span class="nav-icon">📊</span><span>成績</span>
+    </button>
+    <button type="button" class="nav-btn" data-tab="settings">
+      <span class="nav-icon">⚙️</span><span>設定</span>
+    </button>
+  </nav>
+
+  <div id="toast" hidden></div>
+  <button id="export-btn" hidden></button>
+  <input type="file" id="import-input" accept="application/json" />
+
+  <script src="./js/storage.js"></script>
+  <script src="./js/calc.js"></script>
+  <script src="./js/charts.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
