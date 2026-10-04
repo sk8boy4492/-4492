@@ -488,11 +488,11 @@ const App = {
       }
 
       const winnerChips =
-        `<button type="button" class="chip winner-chip draw-chip ${pending.isDraw ? "chip-selected" : ""}" data-draw="1">流局</button>` +
+        `<button type="button" class="chip winner-chip draw-chip ${pending.isDraw ? "chip-selected" : ""}" data-draw="1"><span class="chip-label">流局</span></button>` +
         participants
           .map(
             (p) =>
-              `<button type="button" class="chip winner-chip ${!pending.isDraw && pending.winnerId === p.id ? "chip-selected" : ""}" data-id="${p.id}">${esc(p.name)}</button>`
+              `<button type="button" class="chip winner-chip player-chip ${!pending.isDraw && pending.winnerId === p.id ? "chip-selected" : ""}" data-id="${p.id}">${this.avatarHtml(p.id, "avatar-md")}<span class="chip-label">${esc(p.name)}</span></button>`
           )
           .join("");
 
@@ -518,7 +518,7 @@ const App = {
                 .filter((p) => p.id !== pending.winnerId)
                 .map(
                   (p) =>
-                    `<button type="button" class="chip dealin-chip ${pending.dealInId === p.id ? "chip-selected" : ""}" data-id="${p.id}">${esc(p.name)}</button>`
+                    `<button type="button" class="chip dealin-chip player-chip ${pending.dealInId === p.id ? "chip-selected" : ""}" data-id="${p.id}">${this.avatarHtml(p.id, "avatar-md")}<span class="chip-label">${esc(p.name)}</span></button>`
                 )
                 .join("")}
             </div>

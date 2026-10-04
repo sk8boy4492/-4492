@@ -526,6 +526,36 @@ main {
   font-weight: 700;
 }
 
+.chip.player-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 10px 6px;
+  min-width: 68px;
+  min-height: 76px;
+  border-radius: 16px;
+}
+
+.chip.player-chip .chip-label {
+  font-size: 12px;
+  line-height: 1.2;
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip.player-chip.chip-selected .avatar-fallback {
+  background-color: #fff;
+  color: var(--brand);
+}
+
+.chip.draw-chip {
+  align-self: center;
+}
+
 #kyoku-add-btn {
   width: 100%;
   margin-top: 4px;
