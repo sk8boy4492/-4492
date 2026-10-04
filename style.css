@@ -354,6 +354,7 @@ main {
 
 .player-row-head {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -368,18 +369,100 @@ main {
   min-height: 44px;
 }
 
-.pr-player {
-  flex: 2;
+.result-player-name {
+  flex: 1;
+  font-weight: 600;
 }
 
 .pr-rank {
   flex: 1;
 }
 
+.readonly-count {
+  font-size: 16px;
+  font-weight: 600;
+  padding: 10px 0;
+  color: var(--text-secondary);
+}
+
 .player-row-body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+}
+
+/* --- 局ごとの記録 --- */
+.kyoku-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--grid-line);
+  font-size: 13px;
+}
+
+.kyoku-row:last-child {
+  border-bottom: none;
+}
+
+.kyoku-row-num {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 48px;
+}
+
+.kyoku-row-text {
+  flex: 1;
+}
+
+.kyoku-del-btn {
+  border: none;
+  background: var(--critical-bg);
+  color: var(--critical);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.chip-group {
+  margin-bottom: 12px;
+}
+
+.chip-group-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  background: var(--page-plane);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 14px;
+  min-height: 42px;
+}
+
+.chip-selected {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  font-weight: 700;
+}
+
+#kyoku-add-btn {
+  width: 100%;
+  margin-top: 4px;
 }
 
 .calc-preview {

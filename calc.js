@@ -41,6 +41,18 @@ const Calc = {
     };
   },
 
+  // 局ごとの記録(kyokuLog)から、参加者ごとの和了回数・放銃回数を集計する。
+  // kyokuLog: [{ winnerId, method: 'tsumo'|'ron', dealInId }]  winnerIdがnullなら流局
+  countsFromKyokuLog(kyokuLog, participantIds) {
+    const counts = {};
+    participantIds.forEach((id) => (counts[id] = { agari: 0, houjuu: 0 }));
+    (kyokuLog || []).forEach((k) => {
+      if (k.winnerId && counts[k.winnerId]) counts[k.winnerId].agari += 1;
+      if (k.method === "ron" && k.dealInId && counts[k.dealInId]) counts[k.dealInId].houjuu += 1;
+    });
+    return counts;
+  },
+
   filterGames(games, { period, mode }) {
     const now = new Date();
     return games.filter((g) => {

@@ -307,16 +307,21 @@ const App = {
                 <option value="sanma" ${mode === "sanma" ? "selected" : ""}>三麻</option>
               </select>
             </label>
-            <label class="field">
-              <span>総局数</span>
-              <input type="number" name="totalKyoku" min="1" max="30" required value="${editing ? editing.totalKyoku : 8}" />
-            </label>
           </div>
 
-          <h3>参加プレイヤーと結果</h3>
-          <div id="player-rows"></div>
+          <h3>参加プレイヤー</h3>
+          <div id="participant-rows" class="form-grid"></div>
 
+          <h3>局ごとの記録</h3>
+          <p class="hint">1局終わるたびに記録すると、和了・放銃の回数が自動で集計されます。記録しなくても最後に結果だけ入力できます。</p>
+          <div id="kyoku-list"></div>
+          <div id="kyoku-add-form"></div>
+
+          <h3>最終結果</h3>
+          <p class="hint" id="kyoku-total-hint"></p>
+          <div id="result-rows"></div>
           <div class="calc-preview" id="calc-preview"></div>
+
           <div class="warning-box" id="warning-box" hidden></div>
 
           <div class="btn-row">
@@ -331,40 +336,231 @@ const App = {
     const form = document.getElementById("game-form");
     const modeSelect = document.getElementById("mode-select");
 
-    const buildRows = () => {
+    let kyokuLog = editing && editing.kyokuLog ? editing.kyokuLog.map((k) => Object.assign({}, k)) : [];
+    let pending = { result: null, winnerId: null, dealInId: null };
+
+    const currentParticipants = () =>
+      Array.from(document.querySelectorAll(".participant-select"))
+        .map((sel) => sel.value)
+        .filter(Boolean)
+        .map((id) => ({ id, name: this.playerName(id) }));
+
+    const buildParticipantRows = () => {
       const n = Calc.playerCountForMode(modeSelect.value);
-      const rowsEl = document.getElementById("player-rows");
-      const existingSelections = editing ? editing.players : [];
+      const rowsEl = document.getElementById("participant-rows");
+      const existing = editing ? editing.players : [];
       let html = "";
       for (let i = 0; i < n; i++) {
-        const ex = existingSelections[i] || {};
+        const ex = existing[i] || {};
         html += `
-          <div class="player-row" data-slot="${i}">
-            <div class="player-row-head">
-              <select class="pr-player" required>
-                <option value="">プレイヤーを選択</option>
-                ${this.players
-                  .map(
-                    (p) =>
-                      `<option value="${p.id}" ${ex.playerId === p.id ? "selected" : ""}>${esc(p.name)}${p.isMe ? "(自分)" : ""}</option>`
-                  )
-                  .join("")}
-              </select>
-              <select class="pr-rank" required>
-                <option value="">着順</option>
-                ${Array.from({ length: n }, (_, k) => k + 1)
-                  .map((r) => `<option value="${r}" ${ex.rank === r ? "selected" : ""}>${r}着</option>`)
-                  .join("")}
-              </select>
-            </div>
-            <div class="player-row-body">
-              <label class="field small"><span>最終持ち点</span><input type="number" class="pr-score" step="100" value="${ex.finalScore ?? ""}" required /></label>
-              <label class="field small"><span>和了回数</span><input type="number" class="pr-agari" min="0" value="${ex.agariCount ?? 0}" required /></label>
-              <label class="field small"><span>放銃回数</span><input type="number" class="pr-houjuu" min="0" value="${ex.houjuuCount ?? 0}" required /></label>
+          <label class="field">
+            <span>${i + 1}人目</span>
+            <select class="participant-select" data-slot="${i}" required>
+              <option value="">プレイヤーを選択</option>
+              ${this.players
+                .map(
+                  (p) =>
+                    `<option value="${p.id}" ${ex.playerId === p.id ? "selected" : ""}>${esc(p.name)}${p.isMe ? "(自分)" : ""}</option>`
+                )
+                .join("")}
+            </select>
+          </label>`;
+      }
+      rowsEl.innerHTML = html;
+      rowsEl.querySelectorAll(".participant-select").forEach((sel) => sel.addEventListener("change", onParticipantsChanged));
+    };
+
+    const onParticipantsChanged = () => {
+      const hadLog = kyokuLog.length > 0;
+      kyokuLog = [];
+      pending = { result: null, winnerId: null, dealInId: null };
+      if (hadLog) this.toast("参加プレイヤーを変更したため、局の記録をリセットしました");
+      renderKyokuList();
+      renderKyokuAddForm();
+      buildResultRows();
+    };
+
+    const renderKyokuList = () => {
+      const el = document.getElementById("kyoku-list");
+      if (!kyokuLog.length) {
+        el.innerHTML = '<p class="hint">まだ記録がありません。</p>';
+        return;
+      }
+      el.innerHTML = kyokuLog
+        .map((k, i) => {
+          let text;
+          if (!k.winnerId) {
+            text = "流局";
+          } else if (k.method === "tsumo") {
+            text = `${esc(this.playerName(k.winnerId))} ツモ`;
+          } else {
+            text = `${esc(this.playerName(k.winnerId))} ロン(放銃: ${esc(this.playerName(k.dealInId))})`;
+          }
+          return `
+            <div class="kyoku-row" data-idx="${i}">
+              <span class="kyoku-row-num">${i + 1}局目</span>
+              <span class="kyoku-row-text">${text}</span>
+              <button type="button" class="kyoku-del-btn" aria-label="削除">✕</button>
+            </div>`;
+        })
+        .join("");
+
+      el.querySelectorAll(".kyoku-del-btn").forEach((btn) =>
+        btn.addEventListener("click", (e) => {
+          const idx = Number(e.target.closest(".kyoku-row").dataset.idx);
+          kyokuLog.splice(idx, 1);
+          renderKyokuList();
+          buildResultRows();
+        })
+      );
+    };
+
+    const renderKyokuAddForm = () => {
+      const el = document.getElementById("kyoku-add-form");
+      const participants = currentParticipants();
+      if (participants.length < 2) {
+        el.innerHTML = '<p class="hint">先に参加プレイヤーを選択してください。</p>';
+        return;
+      }
+
+      const resultChips = [
+        { key: "tsumo", label: "ツモ" },
+        { key: "ron", label: "ロン" },
+        { key: "ryuukyoku", label: "流局" },
+      ]
+        .map(
+          (r) =>
+            `<button type="button" class="chip result-chip ${pending.result === r.key ? "chip-selected" : ""}" data-key="${r.key}">${r.label}</button>`
+        )
+        .join("");
+
+      let winnerHtml = "";
+      if (pending.result === "tsumo" || pending.result === "ron") {
+        winnerHtml = `
+          <div class="chip-group">
+            <span class="chip-group-label">和了者</span>
+            <div class="chip-row">
+              ${participants
+                .map(
+                  (p) =>
+                    `<button type="button" class="chip winner-chip ${pending.winnerId === p.id ? "chip-selected" : ""}" data-id="${p.id}">${esc(p.name)}</button>`
+                )
+                .join("")}
             </div>
           </div>`;
       }
-      rowsEl.innerHTML = html;
+
+      let dealInHtml = "";
+      if (pending.result === "ron" && pending.winnerId) {
+        dealInHtml = `
+          <div class="chip-group">
+            <span class="chip-group-label">放銃者</span>
+            <div class="chip-row">
+              ${participants
+                .filter((p) => p.id !== pending.winnerId)
+                .map(
+                  (p) =>
+                    `<button type="button" class="chip dealin-chip ${pending.dealInId === p.id ? "chip-selected" : ""}" data-id="${p.id}">${esc(p.name)}</button>`
+                )
+                .join("")}
+            </div>
+          </div>`;
+      }
+
+      const canAdd =
+        pending.result === "ryuukyoku" ||
+        (pending.result === "tsumo" && pending.winnerId) ||
+        (pending.result === "ron" && pending.winnerId && pending.dealInId);
+
+      el.innerHTML = `
+        <div class="chip-group">
+          <span class="chip-group-label">結果</span>
+          <div class="chip-row">${resultChips}</div>
+        </div>
+        ${winnerHtml}
+        ${dealInHtml}
+        <button type="button" id="kyoku-add-btn" class="btn btn-primary" ${canAdd ? "" : "disabled"}>この局を記録する</button>
+      `;
+
+      el.querySelectorAll(".result-chip").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          pending = { result: btn.dataset.key, winnerId: null, dealInId: null };
+          renderKyokuAddForm();
+        })
+      );
+      el.querySelectorAll(".winner-chip").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          pending.winnerId = btn.dataset.id;
+          pending.dealInId = null;
+          renderKyokuAddForm();
+        })
+      );
+      el.querySelectorAll(".dealin-chip").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          pending.dealInId = btn.dataset.id;
+          renderKyokuAddForm();
+        })
+      );
+      const addBtn = document.getElementById("kyoku-add-btn");
+      if (addBtn && !addBtn.disabled) {
+        addBtn.addEventListener("click", () => {
+          if (pending.result === "ryuukyoku") {
+            kyokuLog.push({ winnerId: null, method: null, dealInId: null });
+          } else if (pending.result === "tsumo") {
+            kyokuLog.push({ winnerId: pending.winnerId, method: "tsumo", dealInId: null });
+          } else {
+            kyokuLog.push({ winnerId: pending.winnerId, method: "ron", dealInId: pending.dealInId });
+          }
+          pending = { result: null, winnerId: null, dealInId: null };
+          renderKyokuList();
+          renderKyokuAddForm();
+          buildResultRows();
+        });
+      }
+    };
+
+    const buildResultRows = () => {
+      const participants = currentParticipants();
+      const n = Calc.playerCountForMode(modeSelect.value);
+      const rowsEl = document.getElementById("result-rows");
+      const existing = editing ? editing.players : [];
+      const counts = Calc.countsFromKyokuLog(
+        kyokuLog,
+        participants.map((p) => p.id)
+      );
+
+      document.getElementById("kyoku-total-hint").textContent = `総局数: ${kyokuLog.length}局(自動計算)`;
+
+      if (participants.length < n) {
+        rowsEl.innerHTML = '<p class="hint">参加プレイヤーをすべて選択すると、着順・最終持ち点を入力できます。</p>';
+        updatePreview();
+        return;
+      }
+
+      rowsEl.innerHTML = participants
+        .map((p, i) => {
+          const ex = existing.find((e) => e.playerId === p.id) || existing[i] || {};
+          const c = counts[p.id] || { agari: 0, houjuu: 0 };
+          return `
+            <div class="player-row" data-player-id="${p.id}">
+              <div class="player-row-head">
+                <span class="result-player-name">${esc(p.name)}</span>
+                <select class="pr-rank" required>
+                  <option value="">着順</option>
+                  ${Array.from({ length: n }, (_, k) => k + 1)
+                    .map((r) => `<option value="${r}" ${ex.rank === r ? "selected" : ""}>${r}着</option>`)
+                    .join("")}
+                </select>
+              </div>
+              <div class="player-row-body">
+                <label class="field small"><span>最終持ち点</span><input type="number" class="pr-score" step="100" value="${ex.finalScore ?? ""}" required /></label>
+                <div class="field small"><span>和了回数</span><div class="readonly-count">${c.agari}回</div></div>
+                <div class="field small"><span>放銃回数</span><div class="readonly-count">${c.houjuu}回</div></div>
+              </div>
+            </div>`;
+        })
+        .join("");
+
       rowsEl.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", updatePreview));
       updatePreview();
     };
@@ -372,17 +568,15 @@ const App = {
     const updatePreview = () => {
       const mode = modeSelect.value;
       const n = Calc.playerCountForMode(mode);
-      const rows = Array.from(document.querySelectorAll(".player-row"));
+      const rows = Array.from(document.querySelectorAll("#result-rows .player-row"));
       const data = rows.map((row) => ({
-        playerId: row.querySelector(".pr-player").value,
+        playerId: row.dataset.playerId,
         rank: Number(row.querySelector(".pr-rank").value) || 0,
         finalScore: Number(row.querySelector(".pr-score").value) || 0,
-        agariCount: Number(row.querySelector(".pr-agari").value) || 0,
-        houjuuCount: Number(row.querySelector(".pr-houjuu").value) || 0,
       }));
 
       const preview = document.getElementById("calc-preview");
-      const complete = data.every((d) => d.playerId && d.rank);
+      const complete = data.length === n && data.every((d) => d.playerId && d.rank);
       if (complete) {
         preview.innerHTML =
           "<h3>収支pt(自動計算)</h3>" +
@@ -398,8 +592,8 @@ const App = {
 
       const warnBox = document.getElementById("warning-box");
       const msgs = [];
-      const ids = data.map((d) => d.playerId).filter(Boolean);
-      if (new Set(ids).size !== ids.length && ids.length > 1) {
+      const participantIds = currentParticipants().map((p) => p.id);
+      if (new Set(participantIds).size !== participantIds.length && participantIds.length > 1) {
         msgs.push("同じプレイヤーが複数選択されています。");
       }
       const ranks = data.map((d) => d.rank).filter(Boolean);
@@ -411,6 +605,9 @@ const App = {
       if (complete && sum !== expected) {
         msgs.push(`持ち点の合計が${expected.toLocaleString()}点になっていません(現在の合計: ${sum.toLocaleString()}点)。`);
       }
+      if (!kyokuLog.length) {
+        msgs.push("局の記録がありません(このまま保存すると和了・放銃の回数は0回になります)。");
+      }
       if (msgs.length) {
         warnBox.hidden = false;
         warnBox.innerHTML = "⚠ " + msgs.join("<br>⚠ ");
@@ -420,12 +617,23 @@ const App = {
       }
     };
 
-    modeSelect.addEventListener("change", buildRows);
-    buildRows();
+    modeSelect.addEventListener("change", () => {
+      kyokuLog = [];
+      pending = { result: null, winnerId: null, dealInId: null };
+      buildParticipantRows();
+      renderKyokuList();
+      renderKyokuAddForm();
+      buildResultRows();
+    });
+
+    buildParticipantRows();
+    renderKyokuList();
+    renderKyokuAddForm();
+    buildResultRows();
 
     form.addEventListener("submit", (e) => {
       e.preventDefault();
-      this.submitGameForm(form, editing);
+      this.submitGameForm(form, editing, kyokuLog);
     });
 
     if (editing) {
@@ -437,32 +645,52 @@ const App = {
     }
   },
 
-  submitGameForm(form, editing) {
+  submitGameForm(form, editing, kyokuLog) {
     const mode = form.elements.mode.value;
     const date = form.elements.date.value;
     const place = form.elements.place.value.trim();
-    const totalKyoku = Number(form.elements.totalKyoku.value);
+    const n = Calc.playerCountForMode(mode);
 
-    const rows = Array.from(document.querySelectorAll(".player-row"));
-    const players = rows.map((row) => ({
-      playerId: row.querySelector(".pr-player").value,
-      rank: Number(row.querySelector(".pr-rank").value),
-      finalScore: Number(row.querySelector(".pr-score").value),
-      agariCount: Number(row.querySelector(".pr-agari").value) || 0,
-      houjuuCount: Number(row.querySelector(".pr-houjuu").value) || 0,
-    }));
+    const rows = Array.from(document.querySelectorAll("#result-rows .player-row"));
+    if (rows.length !== n) {
+      this.toast("参加プレイヤーをすべて選択してください");
+      return;
+    }
+
+    const participantIds = rows.map((row) => row.dataset.playerId);
+    if (new Set(participantIds).size !== participantIds.length) {
+      this.toast("同じプレイヤーが重複しています");
+      return;
+    }
+
+    const counts = Calc.countsFromKyokuLog(kyokuLog, participantIds);
+    const prevPlayers = editing ? editing.players : [];
+
+    const players = rows.map((row) => {
+      const playerId = row.dataset.playerId;
+      const rank = Number(row.querySelector(".pr-rank").value);
+      const finalScore = Number(row.querySelector(".pr-score").value);
+      let agariCount = counts[playerId] ? counts[playerId].agari : 0;
+      let houjuuCount = counts[playerId] ? counts[playerId].houjuu : 0;
+      if (!kyokuLog.length) {
+        // 局ごとの記録をしなかった場合、編集前の回数があればそのまま保持する(後方互換)
+        const prev = prevPlayers.find((p) => p.playerId === playerId);
+        if (prev) {
+          agariCount = Number(prev.agariCount || 0);
+          houjuuCount = Number(prev.houjuuCount || 0);
+        }
+      }
+      return { playerId, rank, finalScore, agariCount, houjuuCount };
+    });
 
     if (players.some((p) => !p.playerId || !p.rank)) {
       this.toast("すべてのプレイヤーと着順を入力してください");
       return;
     }
-    const ids = players.map((p) => p.playerId);
-    if (new Set(ids).size !== ids.length) {
-      this.toast("同じプレイヤーが重複しています");
-      return;
-    }
 
-    const game = { id: editing ? editing.id : genId(), date, place, mode, totalKyoku, players };
+    const totalKyoku = kyokuLog.length || (editing ? Number(editing.totalKyoku || 0) : 0);
+
+    const game = { id: editing ? editing.id : genId(), date, place, mode, totalKyoku, players, kyokuLog };
     const check = Calc.validateGame(game, this.rules);
 
     if (check.rankError) {
