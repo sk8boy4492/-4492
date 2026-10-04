@@ -79,6 +79,17 @@ const App = {
     return p ? p.name : "(削除済み)";
   },
 
+  // プレイヤー(またはプレイヤーID)からアイコンのHTMLを作る。画像が未設定なら頭文字を表示する。
+  avatarHtml(playerOrId, extraClass) {
+    const p = typeof playerOrId === "string" ? this.players.find((pl) => pl.id === playerOrId) : playerOrId;
+    const cls = `avatar ${extraClass || ""}`;
+    if (p && p.icon) {
+      return `<span class="${cls}" style="background-image:url('${p.icon}')"></span>`;
+    }
+    const initial = esc((p && p.name ? p.name : "?").slice(0, 1));
+    return `<span class="${cls} avatar-fallback">${initial}</span>`;
+  },
+
   // ---------- プレイヤー管理(設定タブ内) ----------
   renderSettingsScreen() {
     const root = document.getElementById("screen-settings");
@@ -89,6 +100,18 @@ const App = {
         <div id="player-list"></div>
         <form id="player-form" class="form-grid">
           <input type="hidden" name="id" />
+          <input type="hidden" name="icon" />
+          <div class="field icon-field">
+            <span>アイコン(任意)</span>
+            <div class="icon-field-row">
+              <div class="avatar avatar-lg" id="icon-preview"></div>
+              <label class="btn btn-ghost icon-upload-btn">
+                画像を選ぶ
+                <input type="file" accept="image/*" id="player-icon-input" hidden />
+              </label>
+              <button type="button" id="icon-clear-btn" class="btn btn-ghost" hidden>削除</button>
+            </div>
+          </div>
           <label class="field">
             <span>名前</span>
             <input type="text" name="name" required maxlength="20" placeholder="例: 田中" />
@@ -148,6 +171,36 @@ const App = {
     this.renderPlayerList();
 
     const form = document.getElementById("player-form");
+    const iconPreview = document.getElementById("icon-preview");
+    const iconClearBtn = document.getElementById("icon-clear-btn");
+
+    const setIconPreview = (dataUrl) => {
+      form.elements.icon.value = dataUrl || "";
+      if (dataUrl) {
+        iconPreview.style.backgroundImage = `url('${dataUrl}')`;
+        iconPreview.textContent = "";
+        iconClearBtn.hidden = false;
+      } else {
+        iconPreview.style.backgroundImage = "";
+        iconPreview.textContent = (form.elements.name.value || "?").slice(0, 1);
+        iconClearBtn.hidden = true;
+      }
+    };
+    setIconPreview("");
+
+    document.getElementById("player-icon-input").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      try {
+        const dataUrl = await fileToSquareDataUrl(file, 160);
+        setIconPreview(dataUrl);
+      } catch (err) {
+        this.toast("画像の読み込みに失敗しました");
+      }
+    });
+    iconClearBtn.addEventListener("click", () => setIconPreview(""));
+
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       this.savePlayerFromForm(form);
@@ -155,6 +208,7 @@ const App = {
     document.getElementById("player-cancel-edit").addEventListener("click", () => {
       form.reset();
       form.elements.id.value = "";
+      setIconPreview("");
       document.getElementById("player-cancel-edit").hidden = true;
       form.querySelector('button[type="submit"]').textContent = "登録する";
     });
@@ -172,10 +226,13 @@ const App = {
       .map(
         (p) => `
       <div class="list-row" data-id="${p.id}">
-        <div class="list-row-main">
-          <span class="player-name">${esc(p.name)}</span>
-          ${p.isMe ? '<span class="badge badge-me">自分</span>' : ""}
-          ${p.memo ? `<span class="player-memo">${esc(p.memo)}</span>` : ""}
+        <div class="list-row-main list-row-with-avatar">
+          ${this.avatarHtml(p)}
+          <span class="list-row-text">
+            <span class="player-name">${esc(p.name)}</span>
+            ${p.isMe ? '<span class="badge badge-me">自分</span>' : ""}
+            ${p.memo ? `<span class="player-memo">${esc(p.memo)}</span>` : ""}
+          </span>
         </div>
         <div class="list-row-actions">
           <button type="button" class="icon-btn edit-player" aria-label="編集">編集</button>
@@ -207,6 +264,18 @@ const App = {
     form.elements.name.value = p.name;
     form.elements.memo.value = p.memo || "";
     form.elements.isMe.checked = !!p.isMe;
+    form.elements.icon.value = p.icon || "";
+    const preview = document.getElementById("icon-preview");
+    const clearBtn = document.getElementById("icon-clear-btn");
+    if (p.icon) {
+      preview.style.backgroundImage = `url('${p.icon}')`;
+      preview.textContent = "";
+      clearBtn.hidden = false;
+    } else {
+      preview.style.backgroundImage = "";
+      preview.textContent = (p.name || "?").slice(0, 1);
+      clearBtn.hidden = true;
+    }
     document.getElementById("player-cancel-edit").hidden = false;
     form.querySelector('button[type="submit"]').textContent = "更新する";
     form.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -217,6 +286,7 @@ const App = {
     const name = form.elements.name.value.trim();
     const memo = form.elements.memo.value.trim();
     const isMe = form.elements.isMe.checked;
+    const icon = form.elements.icon.value || null;
     if (!name) {
       this.toast("名前を入力してください");
       return;
@@ -228,13 +298,18 @@ const App = {
     }
     if (id) {
       const p = this.players.find((p) => p.id === id);
-      Object.assign(p, { name, memo, isMe });
+      Object.assign(p, { name, memo, isMe, icon });
     } else {
-      this.players.push({ id: genId(), name, memo, isMe });
+      this.players.push({ id: genId(), name, memo, isMe, icon });
     }
     Store.savePlayers(this.players);
     form.reset();
     form.elements.id.value = "";
+    form.elements.icon.value = "";
+    const preview = document.getElementById("icon-preview");
+    preview.style.backgroundImage = "";
+    preview.textContent = "?";
+    document.getElementById("icon-clear-btn").hidden = true;
     document.getElementById("player-cancel-edit").hidden = true;
     form.querySelector('button[type="submit"]').textContent = "登録する";
     this.renderPlayerList();
@@ -988,6 +1063,31 @@ const App = {
     reader.readAsText(file);
   },
 };
+
+// 選んだ画像ファイルを正方形にトリミング・縮小してJPEGのdata URLにする(localStorageの容量対策)。
+function fileToSquareDataUrl(file, size) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error("ファイルの読み込みに失敗しました"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const srcSize = Math.min(img.width, img.height);
+        const sx = (img.width - srcSize) / 2;
+        const sy = (img.height - srcSize) / 2;
+        ctx.drawImage(img, sx, sy, srcSize, srcSize, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
