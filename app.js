@@ -406,10 +406,16 @@ const App = {
 
           <div class="warning-box" id="warning-box" hidden></div>
 
-          <div class="btn-row">
+          <div class="btn-row-stack">
             <button type="submit" class="btn btn-primary btn-large">${editing ? "更新する" : "記録する"}</button>
-            ${editing ? '<button type="button" id="delete-game-btn" class="btn btn-danger">この記録を削除</button>' : ""}
-            ${editing ? '<button type="button" id="cancel-edit-btn" class="btn btn-ghost">新規入力に戻る</button>' : ""}
+            ${
+              editing
+                ? `<div class="btn-row">
+                     <button type="button" id="cancel-edit-btn" class="btn btn-ghost">新規入力に戻る</button>
+                     <button type="button" id="delete-game-btn" class="btn btn-danger">この記録を削除</button>
+                   </div>`
+                : ""
+            }
           </div>
         </form>
       </section>
@@ -1003,6 +1009,7 @@ const App = {
               .join("")}
           </select>
         </label>
+        <div id="player-style-rank"></div>
         <div id="player-stat-summary"></div>
         <h3>収支ptの推移</h3>
         <div id="chart-line" class="chart-box"></div>
@@ -1042,6 +1049,30 @@ const App = {
 
     // プレイヤー個別
     const stats = Calc.aggregatePlayer(this.state.statsPlayerId, filtered, this.rules);
+
+    const rank = Calc.playerRank(stats, this.state.statsMode);
+    const style = Calc.playStyle(stats, this.state.statsMode);
+    const styleRankEl = document.getElementById("player-style-rank");
+    styleRankEl.innerHTML = `
+      <div class="style-rank-grid">
+        <div class="rank-box tier-${rank.tier}">
+          <span class="rank-box-label">ランク</span>
+          <span class="rank-box-name">${esc(rank.name)}</span>
+          <p class="rank-box-desc">${esc(rank.desc)}</p>
+          ${
+            rank.gated
+              ? `<p class="rank-box-progress">実力は「${esc(rank.nextName)}」相当です。あと${rank.gamesUntilNext}試合で昇格します。</p>`
+              : ""
+          }
+        </div>
+        <div class="style-box style-${style.key}">
+          <span class="rank-box-label">スタイル</span>
+          <span class="style-box-name">${esc(style.label)}</span>
+          <p class="rank-box-desc">${esc(style.desc)}</p>
+        </div>
+      </div>
+    `;
+
     const summary = document.getElementById("player-stat-summary");
     summary.innerHTML = `
       <div class="stat-grid">
