@@ -97,7 +97,7 @@ const App = {
     const r = this.rules;
     root.innerHTML = `
       <section class="card">
-        <h2>プレイヤー管理</h2>
+        <h2>👤 プレイヤー管理</h2>
         <div id="player-list"></div>
         <form id="player-form" class="form-grid">
           <input type="hidden" name="id" />
@@ -133,7 +133,7 @@ const App = {
       </section>
 
       <section class="card">
-        <h2>ルール設定</h2>
+        <h2>⚙️ ルール設定</h2>
         <h3>四麻</h3>
         <div class="form-grid">
           <label class="field"><span>配給原点</span><input type="number" id="r-yonma-start" value="${r.yonma.start}" /></label>
@@ -160,7 +160,7 @@ const App = {
       </section>
 
       <section class="card">
-        <h2>データのバックアップ</h2>
+        <h2>💾 データのバックアップ</h2>
         <p class="hint">スマホの機種変更やブラウザのデータ消去に備えて、ときどきJSONファイルに書き出しておくことをおすすめします。</p>
         <div class="btn-row">
           <button type="button" class="btn btn-primary" onclick="document.getElementById('export-btn').click()">JSONを書き出す</button>
@@ -380,7 +380,7 @@ const App = {
 
     root.innerHTML = `
       <section class="card">
-        <h2>${editing ? "半荘の記録を編集" : "半荘を記録する"}</h2>
+        <h2>${editing ? "✏️ 半荘の記録を編集" : "✏️ 半荘を記録する"}</h2>
         <form id="game-form">
           <h3>1. プレイヤーと形式</h3>
           ${banner}
@@ -929,7 +929,7 @@ const App = {
 
     root.innerHTML = `
       <section class="card">
-        <h2>対局履歴(${sorted.length}件)</h2>
+        <h2>📜 対局履歴(${sorted.length}件)</h2>
         <div id="history-list"></div>
       </section>
     `;
@@ -978,7 +978,7 @@ const App = {
 
     root.innerHTML = `
       <section class="card">
-        <h2>成績</h2>
+        <h2>📊 成績</h2>
         <div class="filter-row">
           <label class="field small">
             <span>期間</span>
@@ -1000,7 +1000,7 @@ const App = {
       </section>
 
       <section class="card">
-        <h2>プレイヤー別成績</h2>
+        <h2>🀄 プレイヤー別成績</h2>
         <label class="field">
           <span>プレイヤー</span>
           <select id="stats-player">
@@ -1018,7 +1018,7 @@ const App = {
       </section>
 
       <section class="card">
-        <h2>全プレイヤーランキング</h2>
+        <h2>🏆 全プレイヤーランキング</h2>
         <div class="table-scroll">
           <table class="rank-table" id="rank-table"></table>
         </div>
