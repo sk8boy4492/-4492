@@ -1,19 +1,19 @@
 // キャッシュのバージョン。ファイルを更新したときはこの文字列を変えると
 // 古いキャッシュが破棄されて新しいファイルが使われるようになる。
-const CACHE_NAME = "mahjong-app-cache-v1";
+const CACHE_NAME = "mahjong-app-cache-v2";
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./css/style.css",
-  "./js/app.js",
-  "./js/charts.js",
-  "./js/storage.js",
-  "./js/calc.js",
+  "./style.css",
+  "./app.js",
+  "./charts.js",
+  "./storage.js",
+  "./calc.js",
   "./manifest.webmanifest",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./icons/apple-touch-icon.png",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (event) => {
