@@ -10,6 +10,7 @@
   --baseline: #c3c2b7;
   --border: rgba(11, 11, 11, 0.1);
   --series-1: #2a78d6;
+  --series-1-bg: rgba(42, 120, 214, 0.1);
   --good: #006300;
   --critical: #d03b3b;
   --critical-bg: rgba(208, 59, 59, 0.08);
@@ -30,6 +31,7 @@
     --baseline: #383835;
     --border: rgba(255, 255, 255, 0.1);
     --series-1: #3987e5;
+    --series-1-bg: rgba(57, 135, 229, 0.16);
     --good: #0ca30c;
     --critical: #e66767;
     --critical-bg: rgba(230, 103, 103, 0.14);
@@ -113,6 +115,17 @@ main {
 .hint {
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  padding: 4px;
+  margin-left: 4px;
 }
 
 /* --- フォーム --- */
@@ -451,6 +464,13 @@ main {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
+}
+
+.pr-score-auto {
+  background: var(--series-1-bg);
+  border-color: var(--series-1);
+  color: var(--series-1);
+  font-weight: 700;
 }
 
 /* --- 局ごとの記録 --- */

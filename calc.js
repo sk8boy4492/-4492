@@ -92,6 +92,8 @@ const Calc = {
       gamesCount: related.length,
       rankSum: 0,
       rankDist: {}, // {1: n, 2: n, ...}
+      firstCount: 0,
+      lastCount: 0,
       totalAgari: 0,
       totalHoujuu: 0,
       totalKyoku: 0,
@@ -103,9 +105,12 @@ const Calc = {
     related.forEach((g) => {
       const entry = g.players.find((p) => p.playerId === playerId);
       const rank = Number(entry.rank);
+      const lastRank = Calc.playerCountForMode(g.mode);
       const pt = Calc.scorePt(rules, g.mode, entry.finalScore, rank);
       stats.rankSum += rank;
       stats.rankDist[rank] = (stats.rankDist[rank] || 0) + 1;
+      if (rank === 1) stats.firstCount += 1;
+      if (rank === lastRank) stats.lastCount += 1;
       stats.totalAgari += Number(entry.agariCount || 0);
       stats.totalHoujuu += Number(entry.houjuuCount || 0);
       stats.totalKyoku += Number(g.totalKyoku || 0);
@@ -124,6 +129,8 @@ const Calc = {
     stats.avgRank = stats.gamesCount ? stats.rankSum / stats.gamesCount : null;
     stats.agariRate = stats.totalKyoku ? stats.totalAgari / stats.totalKyoku : null;
     stats.houjuuRate = stats.totalKyoku ? stats.totalHoujuu / stats.totalKyoku : null;
+    stats.topRate = stats.gamesCount ? stats.firstCount / stats.gamesCount : null;
+    stats.lastRate = stats.gamesCount ? stats.lastCount / stats.gamesCount : null;
 
     return stats;
   },

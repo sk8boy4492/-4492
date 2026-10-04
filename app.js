@@ -5,6 +5,7 @@ const App = {
   state: {
     tab: "input", // input | history | stats | settings
     editingGameId: null, // 履歴から編集中の半荘ID(nullなら新規)
+    lastParticipants: null, // 直前に記録した半荘の{mode, playerIds} (続けて記録するときに使う)
     statsPlayerId: null,
     statsPeriod: "all",
     statsMode: "all",
@@ -355,7 +356,8 @@ const App = {
     const editing = this.state.editingGameId
       ? this.games.find((g) => g.id === this.state.editingGameId)
       : null;
-    const mode = editing ? editing.mode : "yonma";
+    const quickStart = !editing && this.state.lastParticipants;
+    const mode = editing ? editing.mode : quickStart ? this.state.lastParticipants.mode : "yonma";
 
     if (this.players.length < 3) {
       root.innerHTML = `<section class="card"><p class="hint">対局を記録する前に、設定タブから最低3人のプレイヤーを登録してください。</p></section>`;
@@ -367,6 +369,7 @@ const App = {
         <h2>${editing ? "半荘の記録を編集" : "半荘を記録する"}</h2>
         <form id="game-form">
           <h3>1. プレイヤーと形式</h3>
+          ${quickStart ? '<p class="hint" id="quickstart-banner">前回と同じメンバーを設定しました。<button type="button" id="clear-participants-btn" class="link-btn">クリアする</button></p>' : ""}
           <label class="field">
             <span>形式</span>
             <select name="mode" id="mode-select">
@@ -403,6 +406,7 @@ const App = {
 
     let kyokuLog = editing && editing.kyokuLog ? editing.kyokuLog.map((k) => Object.assign({}, k)) : [];
     let pending = { isDraw: false, winnerId: null, method: null, dealInId: null };
+    let quickStartActive = !!quickStart;
 
     const currentParticipants = () =>
       Array.from(document.querySelectorAll(".participant-select"))
@@ -413,7 +417,10 @@ const App = {
     const buildParticipantRows = () => {
       const n = Calc.playerCountForMode(modeSelect.value);
       const rowsEl = document.getElementById("participant-rows");
-      const existing = editing ? editing.players : [];
+      let existing = editing ? editing.players : [];
+      if (!editing && quickStartActive && this.state.lastParticipants && this.state.lastParticipants.mode === modeSelect.value) {
+        existing = this.state.lastParticipants.playerIds.map((id) => ({ playerId: id }));
+      }
       let html = "";
       for (let i = 0; i < n; i++) {
         const ex = existing[i] || {};
@@ -620,7 +627,12 @@ const App = {
         })
         .join("");
 
-      rowsEl.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", updatePreview));
+      rowsEl.querySelectorAll(".pr-score").forEach((el) =>
+        el.addEventListener("input", () => {
+          el.classList.remove("pr-score-auto");
+          updatePreview();
+        })
+      );
       updatePreview();
     };
 
@@ -628,6 +640,24 @@ const App = {
       const mode = modeSelect.value;
       const n = Calc.playerCountForMode(mode);
       const rows = Array.from(document.querySelectorAll("#result-rows .player-row"));
+
+      // 自動検算サポート: 持ち点が1人分だけ未確定なら、配給原点の合計から逆算して自動入力する。
+      // 自動入力した項目は、他の項目が変わるたびに追従して再計算する(その項目を直接編集したら追従をやめる)。
+      if (rows.length === n) {
+        const emptyRows = rows.filter((row) => row.querySelector(".pr-score").value === "");
+        const autoRow = rows.find((row) => row.querySelector(".pr-score").classList.contains("pr-score-auto"));
+        const targetRow = emptyRows.length === 1 ? emptyRows[0] : emptyRows.length === 0 && autoRow ? autoRow : null;
+        if (targetRow) {
+          const filledSum = rows
+            .filter((row) => row !== targetRow)
+            .reduce((s, row) => s + (Number(row.querySelector(".pr-score").value) || 0), 0);
+          const suggested = this.rules[mode].start * n - filledSum;
+          const input = targetRow.querySelector(".pr-score");
+          input.value = suggested;
+          input.classList.add("pr-score-auto");
+        }
+      }
+
       const allFilled = rows.length === n && rows.every((row) => row.querySelector(".pr-score").value !== "");
       const scoreEntries = rows.map((row) => ({
         playerId: row.dataset.playerId,
@@ -695,6 +725,15 @@ const App = {
     renderKyokuList();
     renderKyokuAddForm();
     buildResultRows();
+
+    if (quickStart) {
+      document.getElementById("clear-participants-btn").addEventListener("click", () => {
+        quickStartActive = false;
+        document.getElementById("quickstart-banner").hidden = true;
+        buildParticipantRows();
+        onParticipantsChanged();
+      });
+    }
 
     form.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -775,9 +814,16 @@ const App = {
       this.games.push(game);
     }
     Store.saveGames(this.games);
-    this.toast(editing ? "記録を更新しました" : "記録しました");
     this.state.editingGameId = null;
-    this.state.tab = "history";
+
+    if (editing) {
+      this.toast("記録を更新しました");
+      this.state.tab = "history";
+    } else {
+      // 続けて次の半荘を記録しやすいよう、メンバーを覚えておいて入力画面にとどまる
+      this.state.lastParticipants = { mode: game.mode, playerIds: participantIds };
+      this.toast("記録しました。続けて次の半荘を記録できます");
+    }
     this.render();
   },
 
@@ -929,6 +975,8 @@ const App = {
       <div class="stat-grid">
         <div class="stat-tile"><span class="stat-label">対局数</span><span class="stat-value">${stats.gamesCount}</span></div>
         <div class="stat-tile"><span class="stat-label">平均着順</span><span class="stat-value">${Calc.round1(stats.avgRank)}</span></div>
+        <div class="stat-tile"><span class="stat-label">トップ率</span><span class="stat-value">${Calc.roundPct(stats.topRate)}</span></div>
+        <div class="stat-tile"><span class="stat-label">ラス率</span><span class="stat-value">${Calc.roundPct(stats.lastRate)}</span></div>
         <div class="stat-tile"><span class="stat-label">和了率</span><span class="stat-value">${Calc.roundPct(stats.agariRate)}</span></div>
         <div class="stat-tile"><span class="stat-label">放銃率</span><span class="stat-value">${Calc.roundPct(stats.houjuuRate)}</span></div>
         <div class="stat-tile wide"><span class="stat-label">合計収支</span><span class="stat-value ${stats.totalPt >= 0 ? "pt-pos" : "pt-neg"}">${Calc.formatPt(stats.totalPt)}pt</span></div>
@@ -956,6 +1004,8 @@ const App = {
         isMe: p.isMe,
         gamesCount: s.gamesCount,
         avgRank: s.avgRank,
+        topRate: s.topRate,
+        lastRate: s.lastRate,
         agariRate: s.agariRate,
         houjuuRate: s.houjuuRate,
         totalPt: s.totalPt,
@@ -963,15 +1013,16 @@ const App = {
     });
 
     const { key, dir } = this.state.rankSort;
+    // 小さいほど良い指標(平均着順・ラス率)は、未対局(null)を常に最後に回す
+    const lowerIsBetter = key === "avgRank" || key === "lastRate";
     const sorted = rows.slice().sort((a, b) => {
-      const av = a[key] == null ? -Infinity : a[key];
-      const bv = b[key] == null ? -Infinity : b[key];
-      if (key === "avgRank") {
-        // 平均着順は小さいほど良い。null(対局なし)は最後に回す
+      if (lowerIsBetter) {
         const av2 = a[key] == null ? Infinity : a[key];
         const bv2 = b[key] == null ? Infinity : b[key];
         return dir === "asc" ? av2 - bv2 : bv2 - av2;
       }
+      const av = a[key] == null ? -Infinity : a[key];
+      const bv = b[key] == null ? -Infinity : b[key];
       return dir === "asc" ? av - bv : bv - av;
     });
 
@@ -979,6 +1030,8 @@ const App = {
       { key: "name", label: "名前", sortable: false },
       { key: "gamesCount", label: "対局数" },
       { key: "avgRank", label: "平均着順", fmt: Calc.round1 },
+      { key: "topRate", label: "トップ率", fmt: Calc.roundPct },
+      { key: "lastRate", label: "ラス率", fmt: Calc.roundPct },
       { key: "agariRate", label: "和了率", fmt: Calc.roundPct },
       { key: "houjuuRate", label: "放銃率", fmt: Calc.roundPct },
       { key: "totalPt", label: "収支pt", fmt: Calc.formatPt },
@@ -1003,6 +1056,8 @@ const App = {
             <td class="rank-name">${esc(r.name)}${r.isMe ? '<span class="badge badge-me badge-xs">自分</span>' : ""}</td>
             <td>${r.gamesCount}</td>
             <td>${Calc.round1(r.avgRank)}</td>
+            <td>${Calc.roundPct(r.topRate)}</td>
+            <td>${Calc.roundPct(r.lastRate)}</td>
             <td>${Calc.roundPct(r.agariRate)}</td>
             <td>${Calc.roundPct(r.houjuuRate)}</td>
             <td class="${r.totalPt >= 0 ? "pt-pos" : "pt-neg"}">${Calc.formatPt(r.totalPt)}</td>
@@ -1018,7 +1073,7 @@ const App = {
         if (this.state.rankSort.key === k) {
           this.state.rankSort.dir = this.state.rankSort.dir === "asc" ? "desc" : "asc";
         } else {
-          this.state.rankSort = { key: k, dir: k === "avgRank" ? "asc" : "desc" };
+          this.state.rankSort = { key: k, dir: k === "avgRank" || k === "lastRate" ? "asc" : "desc" };
         }
         this.renderRankTable(filtered);
       });
