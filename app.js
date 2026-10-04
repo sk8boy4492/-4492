@@ -291,33 +291,22 @@ const App = {
       <section class="card">
         <h2>${editing ? "半荘の記録を編集" : "半荘を記録する"}</h2>
         <form id="game-form">
-          <div class="form-grid">
-            <label class="field">
-              <span>日付</span>
-              <input type="date" name="date" required value="${editing ? editing.date : todayStr()}" />
-            </label>
-            <label class="field">
-              <span>場所(任意)</span>
-              <input type="text" name="place" maxlength="20" value="${editing ? esc(editing.place || "") : ""}" placeholder="例: 雀荘〇〇" />
-            </label>
-            <label class="field">
-              <span>形式</span>
-              <select name="mode" id="mode-select">
-                <option value="yonma" ${mode === "yonma" ? "selected" : ""}>四麻</option>
-                <option value="sanma" ${mode === "sanma" ? "selected" : ""}>三麻</option>
-              </select>
-            </label>
-          </div>
-
-          <h3>参加プレイヤー</h3>
+          <h3>1. プレイヤーと形式</h3>
+          <label class="field">
+            <span>形式</span>
+            <select name="mode" id="mode-select">
+              <option value="yonma" ${mode === "yonma" ? "selected" : ""}>四麻</option>
+              <option value="sanma" ${mode === "sanma" ? "selected" : ""}>三麻</option>
+            </select>
+          </label>
           <div id="participant-rows" class="form-grid"></div>
 
-          <h3>局ごとの記録</h3>
-          <p class="hint">1局終わるたびに記録すると、和了・放銃の回数が自動で集計されます。記録しなくても最後に結果だけ入力できます。</p>
+          <h3>2. 局ごとの記録</h3>
+          <p class="hint">和了者(または流局)をタップ→上がり方を選ぶだけで記録できます。記録しなくても最後に結果だけ入力できます。</p>
           <div id="kyoku-list"></div>
           <div id="kyoku-add-form"></div>
 
-          <h3>最終結果</h3>
+          <h3>3. 最終結果</h3>
           <p class="hint" id="kyoku-total-hint"></p>
           <div id="result-rows"></div>
           <div class="calc-preview" id="calc-preview"></div>
@@ -337,7 +326,7 @@ const App = {
     const modeSelect = document.getElementById("mode-select");
 
     let kyokuLog = editing && editing.kyokuLog ? editing.kyokuLog.map((k) => Object.assign({}, k)) : [];
-    let pending = { result: null, winnerId: null, dealInId: null };
+    let pending = { isDraw: false, winnerId: null, method: null, dealInId: null };
 
     const currentParticipants = () =>
       Array.from(document.querySelectorAll(".participant-select"))
@@ -373,7 +362,7 @@ const App = {
     const onParticipantsChanged = () => {
       const hadLog = kyokuLog.length > 0;
       kyokuLog = [];
-      pending = { result: null, winnerId: null, dealInId: null };
+      pending = { isDraw: false, winnerId: null, method: null, dealInId: null };
       if (hadLog) this.toast("参加プレイヤーを変更したため、局の記録をリセットしました");
       renderKyokuList();
       renderKyokuAddForm();
@@ -423,35 +412,29 @@ const App = {
         return;
       }
 
-      const resultChips = [
-        { key: "tsumo", label: "ツモ" },
-        { key: "ron", label: "ロン" },
-        { key: "ryuukyoku", label: "流局" },
-      ]
-        .map(
-          (r) =>
-            `<button type="button" class="chip result-chip ${pending.result === r.key ? "chip-selected" : ""}" data-key="${r.key}">${r.label}</button>`
-        )
-        .join("");
+      const winnerChips =
+        `<button type="button" class="chip winner-chip draw-chip ${pending.isDraw ? "chip-selected" : ""}" data-draw="1">流局</button>` +
+        participants
+          .map(
+            (p) =>
+              `<button type="button" class="chip winner-chip ${!pending.isDraw && pending.winnerId === p.id ? "chip-selected" : ""}" data-id="${p.id}">${esc(p.name)}</button>`
+          )
+          .join("");
 
-      let winnerHtml = "";
-      if (pending.result === "tsumo" || pending.result === "ron") {
-        winnerHtml = `
+      let methodHtml = "";
+      if (pending.winnerId && !pending.isDraw) {
+        methodHtml = `
           <div class="chip-group">
-            <span class="chip-group-label">和了者</span>
+            <span class="chip-group-label">上がり方</span>
             <div class="chip-row">
-              ${participants
-                .map(
-                  (p) =>
-                    `<button type="button" class="chip winner-chip ${pending.winnerId === p.id ? "chip-selected" : ""}" data-id="${p.id}">${esc(p.name)}</button>`
-                )
-                .join("")}
+              <button type="button" class="chip method-chip ${pending.method === "tsumo" ? "chip-selected" : ""}" data-method="tsumo">ツモ</button>
+              <button type="button" class="chip method-chip ${pending.method === "ron" ? "chip-selected" : ""}" data-method="ron">ロン</button>
             </div>
           </div>`;
       }
 
       let dealInHtml = "";
-      if (pending.result === "ron" && pending.winnerId) {
+      if (pending.method === "ron" && pending.winnerId) {
         dealInHtml = `
           <div class="chip-group">
             <span class="chip-group-label">放銃者</span>
@@ -468,29 +451,33 @@ const App = {
       }
 
       const canAdd =
-        pending.result === "ryuukyoku" ||
-        (pending.result === "tsumo" && pending.winnerId) ||
-        (pending.result === "ron" && pending.winnerId && pending.dealInId);
+        pending.isDraw ||
+        (pending.winnerId && pending.method === "tsumo") ||
+        (pending.winnerId && pending.method === "ron" && pending.dealInId);
 
       el.innerHTML = `
         <div class="chip-group">
-          <span class="chip-group-label">結果</span>
-          <div class="chip-row">${resultChips}</div>
+          <span class="chip-group-label">和了者</span>
+          <div class="chip-row">${winnerChips}</div>
         </div>
-        ${winnerHtml}
+        ${methodHtml}
         ${dealInHtml}
         <button type="button" id="kyoku-add-btn" class="btn btn-primary" ${canAdd ? "" : "disabled"}>この局を記録する</button>
       `;
 
-      el.querySelectorAll(".result-chip").forEach((btn) =>
+      el.querySelectorAll(".winner-chip").forEach((btn) =>
         btn.addEventListener("click", () => {
-          pending = { result: btn.dataset.key, winnerId: null, dealInId: null };
+          if (btn.dataset.draw) {
+            pending = { isDraw: true, winnerId: null, method: null, dealInId: null };
+          } else {
+            pending = { isDraw: false, winnerId: btn.dataset.id, method: null, dealInId: null };
+          }
           renderKyokuAddForm();
         })
       );
-      el.querySelectorAll(".winner-chip").forEach((btn) =>
+      el.querySelectorAll(".method-chip").forEach((btn) =>
         btn.addEventListener("click", () => {
-          pending.winnerId = btn.dataset.id;
+          pending.method = btn.dataset.method;
           pending.dealInId = null;
           renderKyokuAddForm();
         })
@@ -504,14 +491,14 @@ const App = {
       const addBtn = document.getElementById("kyoku-add-btn");
       if (addBtn && !addBtn.disabled) {
         addBtn.addEventListener("click", () => {
-          if (pending.result === "ryuukyoku") {
+          if (pending.isDraw) {
             kyokuLog.push({ winnerId: null, method: null, dealInId: null });
-          } else if (pending.result === "tsumo") {
+          } else if (pending.method === "tsumo") {
             kyokuLog.push({ winnerId: pending.winnerId, method: "tsumo", dealInId: null });
           } else {
             kyokuLog.push({ winnerId: pending.winnerId, method: "ron", dealInId: pending.dealInId });
           }
-          pending = { result: null, winnerId: null, dealInId: null };
+          pending = { isDraw: false, winnerId: null, method: null, dealInId: null };
           renderKyokuList();
           renderKyokuAddForm();
           buildResultRows();
@@ -619,7 +606,7 @@ const App = {
 
     modeSelect.addEventListener("change", () => {
       kyokuLog = [];
-      pending = { result: null, winnerId: null, dealInId: null };
+      pending = { isDraw: false, winnerId: null, method: null, dealInId: null };
       buildParticipantRows();
       renderKyokuList();
       renderKyokuAddForm();
@@ -647,8 +634,8 @@ const App = {
 
   submitGameForm(form, editing, kyokuLog) {
     const mode = form.elements.mode.value;
-    const date = form.elements.date.value;
-    const place = form.elements.place.value.trim();
+    const date = editing ? editing.date : todayStr();
+    const place = editing ? editing.place || "" : "";
     const n = Calc.playerCountForMode(mode);
 
     const rows = Array.from(document.querySelectorAll("#result-rows .player-row"));
