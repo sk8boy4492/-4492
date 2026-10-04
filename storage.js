@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   players: "mahjong_players_v1",
   games: "mahjong_games_v1",
   rules: "mahjong_rules_v1",
+  draft: "mahjong_draft_v1",
 };
 
 const DEFAULT_RULES = {
@@ -57,6 +58,18 @@ const Store = {
   },
   saveRules(rules) {
     writeJSON(STORAGE_KEYS.rules, rules);
+  },
+
+  // 入力中の半荘(下書き)。アプリを閉じたりスマホがロックされたりしても
+  // 記録の途中経過が消えないよう、入力のたびに保存する。
+  loadDraft() {
+    return readJSON(STORAGE_KEYS.draft, null);
+  },
+  saveDraft(draft) {
+    writeJSON(STORAGE_KEYS.draft, draft);
+  },
+  clearDraft() {
+    localStorage.removeItem(STORAGE_KEYS.draft);
   },
 
   exportAll() {

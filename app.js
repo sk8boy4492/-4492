@@ -356,12 +356,26 @@ const App = {
     const editing = this.state.editingGameId
       ? this.games.find((g) => g.id === this.state.editingGameId)
       : null;
-    const quickStart = !editing && this.state.lastParticipants;
-    const mode = editing ? editing.mode : quickStart ? this.state.lastParticipants.mode : "yonma";
+    const draft = !editing ? Store.loadDraft() : null;
+    const hasDraft = !!(
+      draft &&
+      ((draft.kyokuLog && draft.kyokuLog.length) || (draft.participantIds || []).some(Boolean))
+    );
+    const quickStart = !editing && !hasDraft && this.state.lastParticipants;
+    const mode = editing ? editing.mode : hasDraft ? draft.mode : quickStart ? this.state.lastParticipants.mode : "yonma";
 
     if (this.players.length < 3) {
       root.innerHTML = `<section class="card"><p class="hint">対局を記録する前に、設定タブから最低3人のプレイヤーを登録してください。</p></section>`;
       return;
+    }
+
+    let banner = "";
+    if (hasDraft) {
+      banner =
+        '<p class="hint" id="draft-banner">入力途中の記録を復元しました。<button type="button" id="discard-draft-btn" class="link-btn">破棄して最初から</button></p>';
+    } else if (quickStart) {
+      banner =
+        '<p class="hint" id="quickstart-banner">前回と同じメンバーを設定しました。<button type="button" id="clear-participants-btn" class="link-btn">クリアする</button></p>';
     }
 
     root.innerHTML = `
@@ -369,7 +383,7 @@ const App = {
         <h2>${editing ? "半荘の記録を編集" : "半荘を記録する"}</h2>
         <form id="game-form">
           <h3>1. プレイヤーと形式</h3>
-          ${quickStart ? '<p class="hint" id="quickstart-banner">前回と同じメンバーを設定しました。<button type="button" id="clear-participants-btn" class="link-btn">クリアする</button></p>' : ""}
+          ${banner}
           <label class="field">
             <span>形式</span>
             <select name="mode" id="mode-select">
@@ -404,9 +418,25 @@ const App = {
     const form = document.getElementById("game-form");
     const modeSelect = document.getElementById("mode-select");
 
-    let kyokuLog = editing && editing.kyokuLog ? editing.kyokuLog.map((k) => Object.assign({}, k)) : [];
+    let kyokuLog = editing && editing.kyokuLog
+      ? editing.kyokuLog.map((k) => Object.assign({}, k))
+      : hasDraft && draft.kyokuLog
+      ? draft.kyokuLog.map((k) => Object.assign({}, k))
+      : [];
     let pending = { isDraw: false, winnerId: null, method: null, dealInId: null };
     let quickStartActive = !!quickStart;
+
+    // 入力中の内容をlocalStorageに保存し、アプリが閉じられても途中から再開できるようにする。
+    const saveDraft = () => {
+      if (editing) return;
+      const participantIds = Array.from(document.querySelectorAll(".participant-select")).map((sel) => sel.value || null);
+      const scores = {};
+      document.querySelectorAll("#result-rows .player-row").forEach((row) => {
+        const v = row.querySelector(".pr-score").value;
+        if (v !== "") scores[row.dataset.playerId] = Number(v);
+      });
+      Store.saveDraft({ mode: modeSelect.value, participantIds, kyokuLog, scores });
+    };
 
     const currentParticipants = () =>
       Array.from(document.querySelectorAll(".participant-select"))
@@ -418,7 +448,15 @@ const App = {
       const n = Calc.playerCountForMode(modeSelect.value);
       const rowsEl = document.getElementById("participant-rows");
       let existing = editing ? editing.players : [];
-      if (!editing && quickStartActive && this.state.lastParticipants && this.state.lastParticipants.mode === modeSelect.value) {
+      if (!editing && hasDraft && draft.mode === modeSelect.value) {
+        existing = (draft.participantIds || []).map((id) => (id ? { playerId: id } : {}));
+      } else if (
+        !editing &&
+        !hasDraft &&
+        quickStartActive &&
+        this.state.lastParticipants &&
+        this.state.lastParticipants.mode === modeSelect.value
+      ) {
         existing = this.state.lastParticipants.playerIds.map((id) => ({ playerId: id }));
       }
       let html = "";
@@ -450,6 +488,13 @@ const App = {
       renderKyokuList();
       renderKyokuAddForm();
       buildResultRows();
+      saveDraft();
+    };
+
+    const kyokuEntryText = (k) => {
+      if (!k.winnerId) return "流局";
+      if (k.method === "tsumo") return `${esc(this.playerName(k.winnerId))} ツモ`;
+      return `${esc(this.playerName(k.winnerId))} ロン(放銃: ${esc(this.playerName(k.dealInId))})`;
     };
 
     const renderKyokuList = () => {
@@ -459,22 +504,14 @@ const App = {
         return;
       }
       el.innerHTML = kyokuLog
-        .map((k, i) => {
-          let text;
-          if (!k.winnerId) {
-            text = "流局";
-          } else if (k.method === "tsumo") {
-            text = `${esc(this.playerName(k.winnerId))} ツモ`;
-          } else {
-            text = `${esc(this.playerName(k.winnerId))} ロン(放銃: ${esc(this.playerName(k.dealInId))})`;
-          }
-          return `
+        .map(
+          (k, i) => `
             <div class="kyoku-row" data-idx="${i}">
               <span class="kyoku-row-num">${i + 1}局目</span>
-              <span class="kyoku-row-text">${text}</span>
+              <span class="kyoku-row-text">${kyokuEntryText(k)}</span>
               <button type="button" class="kyoku-del-btn" aria-label="削除">✕</button>
-            </div>`;
-        })
+            </div>`
+        )
         .join("");
 
       el.querySelectorAll(".kyoku-del-btn").forEach((btn) =>
@@ -482,7 +519,9 @@ const App = {
           const idx = Number(e.target.closest(".kyoku-row").dataset.idx);
           kyokuLog.splice(idx, 1);
           renderKyokuList();
+          renderKyokuAddForm();
           buildResultRows();
+          saveDraft();
         })
       );
     };
@@ -538,7 +577,13 @@ const App = {
         (pending.winnerId && pending.method === "tsumo") ||
         (pending.winnerId && pending.method === "ron" && pending.dealInId);
 
+      const undoHtml = kyokuLog.length
+        ? `<p class="hint kyoku-undo-row">直前: ${kyokuEntryText(kyokuLog[kyokuLog.length - 1])}
+            <button type="button" id="kyoku-undo-btn" class="link-btn">取り消す</button></p>`
+        : "";
+
       el.innerHTML = `
+        ${undoHtml}
         <div class="chip-group">
           <span class="chip-group-label">和了者</span>
           <div class="chip-row">${winnerChips}</div>
@@ -547,6 +592,18 @@ const App = {
         ${dealInHtml}
         <button type="button" id="kyoku-add-btn" class="btn btn-primary" ${canAdd ? "" : "disabled"}>この局を記録する</button>
       `;
+
+      const undoBtn = document.getElementById("kyoku-undo-btn");
+      if (undoBtn) {
+        undoBtn.addEventListener("click", () => {
+          kyokuLog.pop();
+          pending = { isDraw: false, winnerId: null, method: null, dealInId: null };
+          renderKyokuList();
+          renderKyokuAddForm();
+          buildResultRows();
+          saveDraft();
+        });
+      }
 
       el.querySelectorAll(".winner-chip").forEach((btn) =>
         btn.addEventListener("click", () => {
@@ -585,6 +642,7 @@ const App = {
           renderKyokuList();
           renderKyokuAddForm();
           buildResultRows();
+          saveDraft();
         });
       }
     };
@@ -593,7 +651,10 @@ const App = {
       const participants = currentParticipants();
       const n = Calc.playerCountForMode(modeSelect.value);
       const rowsEl = document.getElementById("result-rows");
-      const existing = editing ? editing.players : [];
+      let existing = editing ? editing.players : [];
+      if (!editing && hasDraft && draft.scores) {
+        existing = participants.map((p) => ({ playerId: p.id, finalScore: draft.scores[p.id] ?? "" }));
+      }
       const counts = Calc.countsFromKyokuLog(
         kyokuLog,
         participants.map((p) => p.id)
@@ -710,6 +771,7 @@ const App = {
         warnBox.hidden = true;
         warnBox.innerHTML = "";
       }
+      saveDraft();
     };
 
     modeSelect.addEventListener("change", () => {
@@ -719,6 +781,7 @@ const App = {
       renderKyokuList();
       renderKyokuAddForm();
       buildResultRows();
+      saveDraft();
     });
 
     buildParticipantRows();
@@ -732,6 +795,14 @@ const App = {
         document.getElementById("quickstart-banner").hidden = true;
         buildParticipantRows();
         onParticipantsChanged();
+      });
+    }
+
+    if (hasDraft) {
+      document.getElementById("discard-draft-btn").addEventListener("click", () => {
+        if (!confirm("入力中の記録を削除して、最初からやり直しますか?")) return;
+        Store.clearDraft();
+        this.render();
       });
     }
 
@@ -820,6 +891,7 @@ const App = {
       this.toast("記録を更新しました");
       this.state.tab = "history";
     } else {
+      Store.clearDraft();
       // 続けて次の半荘を記録しやすいよう、メンバーを覚えておいて入力画面にとどまる
       this.state.lastParticipants = { mode: game.mode, playerIds: participantIds };
       this.toast("記録しました。続けて次の半荘を記録できます");

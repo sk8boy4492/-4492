@@ -574,7 +574,24 @@ main {
 
 #kyoku-add-btn {
   width: 100%;
-  margin-top: 4px;
+  margin-top: 10px;
+  position: sticky;
+  bottom: calc(64px + env(safe-area-inset-bottom) + 10px);
+  box-shadow: 0 2px 10px rgba(11, 11, 11, 0.25);
+  z-index: 5;
+}
+
+#kyoku-add-btn:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.kyoku-undo-row {
+  margin-bottom: 10px;
+}
+
+.kyoku-undo-row .link-btn {
+  margin-left: 0;
 }
 
 .calc-preview {
