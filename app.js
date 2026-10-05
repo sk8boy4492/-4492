@@ -362,7 +362,7 @@ const App = {
       ((draft.kyokuLog && draft.kyokuLog.length) || (draft.participantIds || []).some(Boolean))
     );
     const quickStart = !editing && !hasDraft && this.state.lastParticipants;
-    const mode = editing ? editing.mode : hasDraft ? draft.mode : quickStart ? this.state.lastParticipants.mode : "yonma";
+    const mode = editing ? editing.mode : hasDraft ? draft.mode : quickStart ? this.state.lastParticipants.mode : "sanma";
 
     if (this.players.length < 3) {
       root.innerHTML = `<section class="card"><p class="hint">対局を記録する前に、設定タブから最低3人のプレイヤーを登録してください。</p></section>`;
@@ -387,8 +387,8 @@ const App = {
           <label class="field">
             <span>形式</span>
             <select name="mode" id="mode-select">
-              <option value="yonma" ${mode === "yonma" ? "selected" : ""}>四麻</option>
               <option value="sanma" ${mode === "sanma" ? "selected" : ""}>三麻</option>
+              <option value="yonma" ${mode === "yonma" ? "selected" : ""}>四麻</option>
             </select>
           </label>
           <div id="participant-rows" class="form-grid"></div>
