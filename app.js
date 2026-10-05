@@ -437,11 +437,14 @@ const App = {
       if (editing) return;
       const participantIds = Array.from(document.querySelectorAll(".participant-select")).map((sel) => sel.value || null);
       const scores = {};
+      const touchedIds = [];
       document.querySelectorAll("#result-rows .player-row").forEach((row) => {
-        const v = row.querySelector(".pr-score").value;
-        if (v !== "") scores[row.dataset.playerId] = Number(v);
+        const scoreEl = row.querySelector(".pr-score");
+        if (!scoreEl) return;
+        scores[row.dataset.playerId] = Number(scoreEl.value);
+        if (scoreEl.dataset.touched === "1") touchedIds.push(row.dataset.playerId);
       });
-      Store.saveDraft({ mode: modeSelect.value, participantIds, kyokuLog, scores });
+      Store.saveDraft({ mode: modeSelect.value, participantIds, kyokuLog, scores, touchedIds });
     };
 
     const currentParticipants = () =>
@@ -659,7 +662,11 @@ const App = {
       const rowsEl = document.getElementById("result-rows");
       let existing = editing ? editing.players : [];
       if (!editing && hasDraft && draft.scores) {
-        existing = participants.map((p) => ({ playerId: p.id, finalScore: draft.scores[p.id] ?? "" }));
+        const touchedSet = new Set(draft.touchedIds || []);
+        existing = participants.map((p) => ({
+          playerId: p.id,
+          finalScore: touchedSet.has(p.id) ? draft.scores[p.id] : undefined,
+        }));
       }
       const counts = Calc.countsFromKyokuLog(
         kyokuLog,
@@ -674,10 +681,13 @@ const App = {
         return;
       }
 
+      const modeNow = modeSelect.value;
       rowsEl.innerHTML = participants
         .map((p, i) => {
           const ex = existing.find((e) => e.playerId === p.id) || existing[i] || {};
           const c = counts[p.id] || { agari: 0, houjuu: 0 };
+          const hasValue = ex.finalScore !== undefined && ex.finalScore !== null;
+          const initialScore = hasValue ? Number(ex.finalScore) : this.rules[modeNow].start;
           return `
             <div class="player-row" data-player-id="${p.id}">
               <div class="player-row-head">
@@ -685,8 +695,15 @@ const App = {
                 <span class="result-player-name">${esc(p.name)}</span>
                 <span class="rank-badge" data-player-id="${p.id}">-着</span>
               </div>
+              <div class="score-picker">
+                <div class="score-picker-value">${initialScore.toLocaleString()}<span class="score-picker-unit">点</span></div>
+                <input type="range" class="pr-score" min="-200000" max="200000" step="1000" value="${initialScore}" data-touched="${hasValue ? "1" : "0"}" />
+                <div class="score-nudge-row">
+                  <button type="button" class="score-nudge" data-delta="-1000">−1,000</button>
+                  <button type="button" class="score-nudge" data-delta="1000">+1,000</button>
+                </div>
+              </div>
               <div class="player-row-body">
-                <label class="field small"><span>最終持ち点</span><input type="number" class="pr-score" step="100" value="${ex.finalScore ?? ""}" required /></label>
                 <div class="field small"><span>和了回数</span><div class="readonly-count">${c.agari}回</div></div>
                 <div class="field small"><span>放銃回数</span><div class="readonly-count">${c.houjuu}回</div></div>
               </div>
@@ -694,32 +711,27 @@ const App = {
         })
         .join("");
 
-      rowsEl.querySelectorAll(".pr-score").forEach((el) => {
+      rowsEl.querySelectorAll(".score-picker").forEach((picker) => {
+        const el = picker.querySelector(".pr-score");
+        const valueEl = picker.querySelector(".score-picker-value");
+        const updateReadout = () => {
+          valueEl.innerHTML = `${Number(el.value).toLocaleString()}<span class="score-picker-unit">点</span>`;
+        };
         el.addEventListener("input", () => {
-          el.classList.remove("pr-score-auto");
+          el.dataset.touched = "1";
+          updateReadout();
           updatePreview();
         });
-        // iPhoneのSafariはtype="number"の入力欄でel.select()が効かないことがあり、
-        // 自動入力された数値をタップしてそのまま入力すると末尾に追記されてしまう。
-        // それを防ぐため、自動入力された値は、タップした瞬間に空にしてから入力させる
-        // (何も入力せずに他の欄へ移った場合は、値を復元する)。
-        el.addEventListener("focus", () => {
-          if (el.classList.contains("pr-score-auto")) {
-            el.dataset.autoValue = el.value;
-            el.value = "";
-            el.classList.remove("pr-score-auto");
-          } else {
-            el.select();
-          }
-        });
-        el.addEventListener("blur", () => {
-          if (el.value === "" && el.dataset.autoValue) {
-            el.value = el.dataset.autoValue;
-            el.classList.add("pr-score-auto");
-            delete el.dataset.autoValue;
+        picker.querySelectorAll(".score-nudge").forEach((btn) =>
+          btn.addEventListener("click", () => {
+            const delta = Number(btn.dataset.delta);
+            const v = Math.max(-200000, Math.min(200000, Number(el.value) + delta));
+            el.value = v;
+            el.dataset.touched = "1";
+            updateReadout();
             updatePreview();
-          }
-        });
+          })
+        );
       });
       updatePreview();
     };
@@ -729,29 +741,30 @@ const App = {
       const n = Calc.playerCountForMode(mode);
       const rows = Array.from(document.querySelectorAll("#result-rows .player-row"));
 
-      // 自動検算サポート: 持ち点が1人分だけ未確定なら、配給原点の合計から逆算して自動入力する。
-      // 自動入力した項目は、他の項目が変わるたびに追従して再計算する(その項目を直接編集したら追従をやめる)。
+      // 自動検算サポート: 持ち点のスライダーが1人分だけ未調整なら、配給原点の合計から逆算して
+      // そのスライダーを自動で動かす。他のスライダーが変わるたびに追従して再計算する
+      // (そのスライダー自体を動かしたら追従をやめる)。
       if (rows.length === n) {
-        const emptyRows = rows.filter((row) => row.querySelector(".pr-score").value === "");
-        const autoRow = rows.find((row) => row.querySelector(".pr-score").classList.contains("pr-score-auto"));
-        const targetRow = emptyRows.length === 1 ? emptyRows[0] : emptyRows.length === 0 && autoRow ? autoRow : null;
-        if (targetRow) {
+        const untouchedRows = rows.filter((row) => row.querySelector(".pr-score").dataset.touched !== "1");
+        if (untouchedRows.length === 1) {
+          const targetRow = untouchedRows[0];
           const filledSum = rows
             .filter((row) => row !== targetRow)
-            .reduce((s, row) => s + (Number(row.querySelector(".pr-score").value) || 0), 0);
-          const suggested = this.rules[mode].start * n - filledSum;
+            .reduce((s, row) => s + Number(row.querySelector(".pr-score").value), 0);
+          const suggested = Math.max(-200000, Math.min(200000, this.rules[mode].start * n - filledSum));
           const input = targetRow.querySelector(".pr-score");
           input.value = suggested;
-          input.classList.add("pr-score-auto");
+          const readout = targetRow.querySelector(".score-picker-value");
+          if (readout) readout.innerHTML = `${suggested.toLocaleString()}<span class="score-picker-unit">点</span>`;
         }
       }
 
-      const allFilled = rows.length === n && rows.every((row) => row.querySelector(".pr-score").value !== "");
+      const complete = rows.length === n;
       const scoreEntries = rows.map((row) => ({
         playerId: row.dataset.playerId,
         finalScore: Number(row.querySelector(".pr-score").value) || 0,
       }));
-      const ranks = allFilled ? Calc.ranksFromScores(scoreEntries) : {};
+      const ranks = complete ? Calc.ranksFromScores(scoreEntries) : {};
       rows.forEach((row) => {
         const badge = row.querySelector(".rank-badge");
         if (badge) badge.textContent = ranks[row.dataset.playerId] ? `${ranks[row.dataset.playerId]}着` : "-着";
@@ -763,7 +776,6 @@ const App = {
       }));
 
       const preview = document.getElementById("calc-preview");
-      const complete = allFilled;
       if (complete) {
         preview.innerHTML =
           "<h3>収支pt(自動計算)</h3>" +
@@ -782,6 +794,10 @@ const App = {
       const participantIds = currentParticipants().map((p) => p.id);
       if (new Set(participantIds).size !== participantIds.length && participantIds.length > 1) {
         msgs.push("同じプレイヤーが複数選択されています。");
+      }
+      const touchedCount = rows.filter((row) => row.querySelector(".pr-score").dataset.touched === "1").length;
+      if (complete && touchedCount < n - 1) {
+        msgs.push("持ち点のスライダーを調整してください(まだ初期値のままのプレイヤーがいます)。");
       }
       const sum = data.reduce((s, d) => s + d.finalScore, 0);
       const expected = this.rules[mode].start * n;
@@ -865,8 +881,9 @@ const App = {
       return;
     }
 
-    if (rows.some((row) => row.querySelector(".pr-score").value === "")) {
-      this.toast("すべてのプレイヤーの最終持ち点を入力してください");
+    const touchedCount = rows.filter((row) => row.querySelector(".pr-score").dataset.touched === "1").length;
+    if (touchedCount < n - 1) {
+      this.toast("持ち点のスライダーを調整してください(少なくとも" + (n - 1) + "人分)");
       return;
     }
 
