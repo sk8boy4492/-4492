@@ -8,7 +8,7 @@ const App = {
     lastParticipants: null, // 直前に記録した半荘の{mode, playerIds} (続けて記録するときに使う)
     statsPlayerId: null,
     statsPeriod: "all",
-    statsMode: "all",
+    statsMode: "sanma",
     rankSort: { key: "totalPt", dir: "desc" },
   },
   players: [],
@@ -694,12 +694,15 @@ const App = {
         })
         .join("");
 
-      rowsEl.querySelectorAll(".pr-score").forEach((el) =>
+      rowsEl.querySelectorAll(".pr-score").forEach((el) => {
         el.addEventListener("input", () => {
           el.classList.remove("pr-score-auto");
           updatePreview();
-        })
-      );
+        });
+        // タップした時に中身を選択状態にして、そのまま入力すると上書きされるようにする
+        // (自動入力された数値の末尾に追記されてしまう不具合を防ぐ)
+        el.addEventListener("focus", () => el.select());
+      });
       updatePreview();
     };
 
@@ -991,9 +994,8 @@ const App = {
           <label class="field small">
             <span>形式</span>
             <select id="stats-mode">
-              <option value="all" ${this.state.statsMode === "all" ? "selected" : ""}>すべて</option>
-              <option value="yonma" ${this.state.statsMode === "yonma" ? "selected" : ""}>四麻</option>
               <option value="sanma" ${this.state.statsMode === "sanma" ? "selected" : ""}>三麻</option>
+              <option value="yonma" ${this.state.statsMode === "yonma" ? "selected" : ""}>四麻</option>
             </select>
           </label>
         </div>

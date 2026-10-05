@@ -1,6 +1,6 @@
 // キャッシュのバージョン。ファイルを更新したときはこの文字列を変えると
 // 古いキャッシュが破棄されて新しいファイルが使われるようになる。
-const CACHE_NAME = "mahjong-app-cache-v13";
+const CACHE_NAME = "mahjong-app-cache-v14";
 
 const ASSETS = [
   "./",
