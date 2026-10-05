@@ -82,6 +82,25 @@ h2 {
   font-weight: 700;
   padding-left: 12px;
   border-left: 4px solid var(--gold);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.h2-icon {
+  display: inline-flex;
+  color: var(--brand);
+  flex-shrink: 0;
+}
+
+.h2-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.h2-icon-tile svg {
+  width: 22px;
+  height: 22px;
 }
 
 h3 {
@@ -311,12 +330,18 @@ main {
 }
 
 .nav-btn .nav-icon {
-  font-size: 19px;
   width: 34px;
   height: 28px;
-  line-height: 28px;
   border-radius: 999px;
   transition: background-color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-btn .nav-icon svg {
+  width: 21px;
+  height: 21px;
 }
 
 .nav-btn.active .nav-icon {
@@ -738,6 +763,36 @@ main {
   opacity: 0.95;
   margin: 0;
   line-height: 1.5;
+}
+
+.star-row {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.star-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.star-filled {
+  color: #ffd166;
+}
+
+.star-empty {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.style-box-icon {
+  display: inline-flex;
+  vertical-align: -5px;
+  margin-right: 4px;
+}
+
+.style-box-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
 .rank-box-progress {

@@ -97,7 +97,7 @@ const App = {
     const r = this.rules;
     root.innerHTML = `
       <section class="card">
-        <h2>👤 プレイヤー管理</h2>
+        <h2><span class="h2-icon">${Icons.player}</span>プレイヤー管理</h2>
         <div id="player-list"></div>
         <form id="player-form" class="form-grid">
           <input type="hidden" name="id" />
@@ -133,7 +133,7 @@ const App = {
       </section>
 
       <section class="card">
-        <h2>⚙️ ルール設定</h2>
+        <h2><span class="h2-icon">${Icons.settings}</span>ルール設定</h2>
         <h3>四麻</h3>
         <div class="form-grid">
           <label class="field"><span>配給原点</span><input type="number" id="r-yonma-start" value="${r.yonma.start}" /></label>
@@ -160,7 +160,7 @@ const App = {
       </section>
 
       <section class="card">
-        <h2>💾 データのバックアップ</h2>
+        <h2><span class="h2-icon">${Icons.backup}</span>データのバックアップ</h2>
         <p class="hint">スマホの機種変更やブラウザのデータ消去に備えて、ときどきJSONファイルに書き出しておくことをおすすめします。</p>
         <div class="btn-row">
           <button type="button" class="btn btn-primary" onclick="document.getElementById('export-btn').click()">JSONを書き出す</button>
@@ -380,7 +380,7 @@ const App = {
 
     root.innerHTML = `
       <section class="card">
-        <h2>${editing ? "✏️ 半荘の記録を編集" : "✏️ 半荘を記録する"}</h2>
+        <h2><span class="h2-icon">${Icons.write}</span>${editing ? "半荘の記録を編集" : "半荘を記録する"}</h2>
         <form id="game-form">
           <h3>1. プレイヤーと形式</h3>
           ${banner}
@@ -929,7 +929,7 @@ const App = {
 
     root.innerHTML = `
       <section class="card">
-        <h2>📜 対局履歴(${sorted.length}件)</h2>
+        <h2><span class="h2-icon">${Icons.history}</span>対局履歴(${sorted.length}件)</h2>
         <div id="history-list"></div>
       </section>
     `;
@@ -978,7 +978,7 @@ const App = {
 
     root.innerHTML = `
       <section class="card">
-        <h2>📊 成績</h2>
+        <h2><span class="h2-icon">${Icons.stats}</span>成績</h2>
         <div class="filter-row">
           <label class="field small">
             <span>期間</span>
@@ -1000,7 +1000,7 @@ const App = {
       </section>
 
       <section class="card">
-        <h2>🀄 プレイヤー別成績</h2>
+        <h2><span class="h2-icon h2-icon-tile">${Icons.tile}</span>プレイヤー別成績</h2>
         <label class="field">
           <span>プレイヤー</span>
           <select id="stats-player">
@@ -1018,7 +1018,7 @@ const App = {
       </section>
 
       <section class="card">
-        <h2>🏆 全プレイヤーランキング</h2>
+        <h2><span class="h2-icon">${Icons.trophy}</span>全プレイヤーランキング</h2>
         <div class="table-scroll">
           <table class="rank-table" id="rank-table"></table>
         </div>
@@ -1052,12 +1052,14 @@ const App = {
 
     const rank = Calc.playerRank(stats, this.state.statsMode);
     const style = Calc.playStyle(stats, this.state.statsMode);
+    const styleIconKey = { skilled: "target", aggressive: "flame", defensive: "shield", unstable: "wave", balanced: "scale", unknown: "hourglass" }[style.key];
     const styleRankEl = document.getElementById("player-style-rank");
     styleRankEl.innerHTML = `
       <div class="style-rank-grid">
         <div class="rank-box tier-${rank.tier}">
           <span class="rank-box-label">ランク</span>
           <span class="rank-box-name">${esc(rank.name)}</span>
+          <span class="star-row">${starRatingHtml(rank.tier)}</span>
           <p class="rank-box-desc">${esc(rank.desc)}</p>
           ${
             rank.gated
@@ -1067,7 +1069,7 @@ const App = {
         </div>
         <div class="style-box style-${style.key}">
           <span class="rank-box-label">スタイル</span>
-          <span class="style-box-name">${esc(style.label)}</span>
+          <span class="style-box-name"><span class="style-box-icon">${Icons[styleIconKey]}</span>${esc(style.label)}</span>
           <p class="rank-box-desc">${esc(style.desc)}</p>
         </div>
       </div>

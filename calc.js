@@ -154,7 +154,7 @@ const Calc = {
     if (!stats.gamesCount || stats.gamesCount < this.STYLE_MIN_GAMES || stats.agariRate == null || stats.houjuuRate == null) {
       return {
         key: "unknown",
-        label: "⏳ 診断中",
+        label: "診断中",
         desc: `対局数が増えるとスタイルが分かります(目安: ${this.STYLE_MIN_GAMES}試合以上)。`,
       };
     }
@@ -167,26 +167,26 @@ const Calc = {
     const skilledByDiff = isSanma && stats.agariRate - stats.houjuuRate >= this.SANMA_SKILLED_DIFF;
 
     if ((agariHigh && houjuuLow) || skilledByDiff) {
-      return { key: "skilled", label: "🎯 巧者型", desc: "和了も多く放銃も少ない、理想的な打ち筋です。" };
+      return { key: "skilled", label: "巧者型", desc: "和了も多く放銃も少ない、理想的な打ち筋です。" };
     }
     if (agariHigh && houjuuHigh) {
-      return { key: "aggressive", label: "🔥 攻撃型", desc: "積極的に攻めて和了を重ねる一方、放銃もやや多めです。" };
+      return { key: "aggressive", label: "攻撃型", desc: "積極的に攻めて和了を重ねる一方、放銃もやや多めです。" };
     }
     if (agariLow && houjuuLow) {
-      return { key: "defensive", label: "🛡️ 守備型", desc: "放銃を避ける手堅い打ち筋です。和了はやや少なめです。" };
+      return { key: "defensive", label: "守備型", desc: "放銃を避ける手堅い打ち筋です。和了はやや少なめです。" };
     }
     if (agariLow && houjuuHigh) {
-      return { key: "unstable", label: "🌊 不安定型", desc: "和了が少ない割に放銃が多め。押し引きの見直しが効果的かもしれません。" };
+      return { key: "unstable", label: "不安定型", desc: "和了が少ない割に放銃が多め。押し引きの見直しが効果的かもしれません。" };
     }
-    return { key: "balanced", label: "⚖️ バランス型", desc: "攻めと守りのバランスが取れた安定型の打ち筋です。" };
+    return { key: "balanced", label: "バランス型", desc: "攻めと守りのバランスが取れた安定型の打ち筋です。" };
   },
 
   RANK_TIERS: [
-    { tier: 1, name: "🔰 駆け出し雀士", minGames: 0 },
-    { tier: 2, name: "🀄 一人前雀士", minGames: 3 },
-    { tier: 3, name: "🎯 手練の雀士", minGames: 8 },
-    { tier: 4, name: "🏆 雀卓の達人", minGames: 20 },
-    { tier: 5, name: "👑 麻雀仙人", minGames: 40 },
+    { tier: 1, name: "駆け出し雀士", minGames: 0 },
+    { tier: 2, name: "一人前雀士", minGames: 3 },
+    { tier: 3, name: "手練の雀士", minGames: 8 },
+    { tier: 4, name: "雀卓の達人", minGames: 20 },
+    { tier: 5, name: "麻雀仙人", minGames: 40 },
   ],
   RANK_AVG_RANK_THRESHOLDS: {
     // 平均着順がこの値以下ならそのtier相当、という目安(小さいほど好成績)
@@ -206,7 +206,7 @@ const Calc = {
   // 各ランクには必要対局数(minGames)も設けている。
   playerRank(stats, mode) {
     if (!stats.gamesCount || stats.avgRank == null) {
-      return { tier: 0, name: "⏳ 未判定", desc: "対局を記録するとランクが表示されます。", gated: false };
+      return { tier: 0, name: "未判定", desc: "対局を記録するとランクが表示されます。", gated: false };
     }
     const th = this.RANK_AVG_RANK_THRESHOLDS[mode === "sanma" ? "sanma" : "yonma"];
     let tentative = 1;
