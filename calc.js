@@ -249,8 +249,8 @@ const Calc = {
 
   formatPt(n) {
     if (n == null || Number.isNaN(n)) return "-";
-    const v = Math.round(n * 10) / 10;
+    const v = Math.round(n);
     const sign = v > 0 ? "+" : "";
-    return sign + v.toFixed(1);
+    return sign + v.toLocaleString();
   },
 };

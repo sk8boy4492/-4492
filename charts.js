@@ -160,8 +160,7 @@ function pickNiceStep(rough) {
 }
 
 function fmtAxis(v) {
-  const r = Math.round(v * 10) / 10;
-  return r.toFixed(r % 1 === 0 ? 0 : 1);
+  return Math.round(v).toLocaleString();
 }
 
 function formatDateShort(isoDate) {
