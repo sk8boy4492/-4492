@@ -699,9 +699,27 @@ const App = {
           el.classList.remove("pr-score-auto");
           updatePreview();
         });
-        // タップした時に中身を選択状態にして、そのまま入力すると上書きされるようにする
-        // (自動入力された数値の末尾に追記されてしまう不具合を防ぐ)
-        el.addEventListener("focus", () => el.select());
+        // iPhoneのSafariはtype="number"の入力欄でel.select()が効かないことがあり、
+        // 自動入力された数値をタップしてそのまま入力すると末尾に追記されてしまう。
+        // それを防ぐため、自動入力された値は、タップした瞬間に空にしてから入力させる
+        // (何も入力せずに他の欄へ移った場合は、値を復元する)。
+        el.addEventListener("focus", () => {
+          if (el.classList.contains("pr-score-auto")) {
+            el.dataset.autoValue = el.value;
+            el.value = "";
+            el.classList.remove("pr-score-auto");
+          } else {
+            el.select();
+          }
+        });
+        el.addEventListener("blur", () => {
+          if (el.value === "" && el.dataset.autoValue) {
+            el.value = el.dataset.autoValue;
+            el.classList.add("pr-score-auto");
+            delete el.dataset.autoValue;
+            updatePreview();
+          }
+        });
       });
       updatePreview();
     };
